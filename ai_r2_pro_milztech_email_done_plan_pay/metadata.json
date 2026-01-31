@@ -1,0 +1,7 @@
+{
+  "name": "AI_R2_Pro_milztech_email_done_plan_pay",
+  "description": "A professional real estate staging platform where clients select plans (Furniture Add/Remove) and upload room images for processing.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
