@@ -146,6 +146,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch (err) { alert("Save plan failed"); }
   };
 
+  const handleCancelPlanEdit = () => {
+    setEditingPlanId(null);
+    setPlanForm({ id: '', title: '', price: '$', amount: 0, description: '', number: '', isVisible: true });
+  };
+
   const togglePlanVisibility = async (p: Plan) => {
     try {
       await db.plans.update(p.id, { is_visible: p.isVisible === false });
@@ -162,6 +167,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onUpdateArchive(); setEditingArchiveId(null);
       setArchiveForm({ title: '', category: '', beforeurl: '', afterurl: '', description: '' });
     } catch (err) { alert("Save archive failed"); }
+  };
+
+  const handleCancelArchiveEdit = () => {
+    setEditingArchiveId(null);
+    setArchiveForm({ title: '', category: '', beforeurl: '', afterurl: '', description: '' });
   };
 
   const DeliveryDropZone = ({ submission, type }: { submission: Submission, type: 'remove' | 'add' | 'single' }) => {
@@ -253,8 +263,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     );
   };
 
+  const getFilterIcon = (filter: FilterStatus) => {
+    switch (filter) {
+      case 'all': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16m-7 6h7" /></svg>;
+      case 'pending': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+      case 'processing': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;
+      case 'reviewing': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268-2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>;
+      case 'completed': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>;
+      case 'comments': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>;
+      case 'archive': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+      case 'plans': return <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>;
+      default: return null;
+    }
+  };
+
   return (
-    <div className="max-w-[1600px] mx-auto py-8 px-4 md:px-10 space-y-8">
+    <div className="max-w-[1600px] mx-auto py-8 px-4 md:px-10 space-y-8 text-left">
       {viewingDetail && <DetailModal submission={viewingDetail} plans={plans} onClose={() => setViewingDetail(null)} />}
       {chattingSubmission && <ChatBoard submission={chattingSubmission} user={user} plans={plans} onClose={() => { setChattingSubmission(null); loadAllMessages(); }} />}
       
@@ -304,8 +328,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
-           {user?.role === 'admin' && <button onClick={() => setShowEditorManager(true)} className="flex-1 md:flex-none px-6 py-2.5 bg-white border-2 border-slate-900 text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-full">Team Manager</button>}
-           <button onClick={onRefresh} className="flex-1 md:flex-none px-6 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full">Sync</button>
+           {user?.role === 'admin' && <button onClick={() => setShowEditorManager(true)} className="flex-1 md:flex-none px-6 py-2.5 bg-white border-2 border-slate-900 text-slate-900 text-[10px] font-black uppercase tracking-widest rounded-full flex items-center justify-center gap-2">
+             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" /></svg>
+             Team Manager
+           </button>}
+           <button onClick={onRefresh} className="flex-1 md:flex-none px-6 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center justify-center gap-2">
+             <svg className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+             Sync
+           </button>
         </div>
       </header>
 
@@ -317,6 +347,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="w-px h-6 bg-slate-100 mx-1"></div>
           {(['all', 'pending', 'processing', 'reviewing', 'completed', 'comments', 'archive', 'plans'] as FilterStatus[]).map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${statusFilter === s ? 'text-slate-900 bg-slate-50' : 'text-slate-300 hover:text-slate-400'}`}>
+               {getFilterIcon(s)}
                {s === 'comments' ? 'Communications' : s === 'archive' ? 'Manage Archive' : s === 'plans' ? 'Manage Plans' : s}
             </button>
           ))}
@@ -336,7 +367,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <input value={planForm.number} onChange={e => setPlanForm({...planForm, number: e.target.value})} placeholder="Plan Number (e.g. 01)" className="px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none" />
                   <input value={planForm.description} onChange={e => setPlanForm({...planForm, description: e.target.value})} placeholder="Description" className="px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none" />
                 </div>
-                <button onClick={handleSavePlan} className="w-full py-6 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Save Production Plan</button>
+                <div className="flex gap-4">
+                  <button onClick={handleSavePlan} className="flex-grow py-6 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Save Production Plan</button>
+                  {editingPlanId && (
+                    <button onClick={handleCancelPlanEdit} className="px-10 py-6 bg-white border border-slate-200 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel Edit</button>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {(Object.values(plans) as Plan[]).map(p => (
@@ -373,7 +409,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        <ArchiveImageDropZone type="after" url={archiveForm.afterurl} onUpload={url => setArchiveForm({...archiveForm, afterurl: url})} />
                     </div>
                  </div>
-                 <button onClick={handleSaveArchive} className="w-full py-6 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Publish to Showcase</button>
+                 <div className="flex gap-4">
+                  <button onClick={handleSaveArchive} className="flex-grow py-6 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Publish to Showcase</button>
+                  {editingArchiveId && (
+                    <button onClick={handleCancelArchiveEdit} className="px-10 py-6 bg-white border border-slate-200 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel Edit</button>
+                  )}
+                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                  {archiveProjects.map(proj => (
