@@ -67,6 +67,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       const result = await db.messages.fetchAll();
       const msgs = Array.isArray(result) ? result : [];
       setAllMessages(msgs);
+      
+      // 既読状態をローカルストレージから復元
       const map: Record<string, number> = {};
       submissions.forEach(s => {
         const val = localStorage.getItem(`chat_last_read_${s.id}`);
@@ -162,7 +164,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       info[sId].count += 1;
       const lastSeen = lastReadMap[sId] || 0;
       if (!info[sId].lastMessage || msg.timestamp > info[sId].lastMessage.timestamp) info[sId].lastMessage = msg;
-      if (msg.sender_role === 'user' && msg.timestamp > lastSeen) info[sId].hasNew = true;
+      
+      // 管理者から見て、ユーザー（クライアント）からの新着メッセージがあるか判定
+      if (msg.sender_role === 'user' && msg.timestamp > lastSeen) {
+        info[sId].hasNew = true;
+      }
     });
     return info;
   }, [allMessages, lastReadMap]);
@@ -196,25 +202,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const [dragging, setDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
     const label = type === 'remove' ? 'REMOVED' : type === 'add' ? 'STAGED' : 'FINAL RESULT';
-    const currentUrl = type === 'remove' ? submission.resultRemoveUrl : (type === 'add' ? submission.resultAddUrl : (submission.resultAddUrl || submission.resultDataUrl));
+    const currentUrlRaw = type === 'remove' ? submission.resultRemoveUrl : (type === 'add' ? submission.resultAddUrl : (submission.resultAddUrl || submission.resultDataUrl));
+    
+    // キャッシュ回避用のタイムスタンプを付与
+    const currentUrl = currentUrlRaw ? `${currentUrlRaw}${currentUrlRaw.includes('?') ? '&' : '?'}t=${Date.now()}` : null;
+
     const handleUpload = async (file: File) => {
       setUploading(true);
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
-          const publicUrl = await db.storage.upload(`results/${submission.id}_${type}.jpg`, reader.result as string);
+          // パスにタイムスタンプを含めてアップロードすることで差し替えを確実にする
+          const uniquePath = `results/${submission.id}_${type}_${Date.now()}.jpg`;
+          const publicUrl = await db.storage.upload(uniquePath, reader.result as string);
+          
           const updates: Partial<Submission> = {};
           if (type === 'remove') updates.resultRemoveUrl = publicUrl;
-          else { updates.resultAddUrl = publicUrl; updates.resultDataUrl = publicUrl; }
+          else { 
+            updates.resultAddUrl = publicUrl; 
+            updates.resultDataUrl = publicUrl; 
+          }
+          
           let newStatus = submission.status;
           if (submission.plan === PlanType.FURNITURE_BOTH) {
-            if ((type === 'remove' || submission.resultRemoveUrl) && (type === 'add' || submission.resultAddUrl)) newStatus = 'reviewing';
-          } else { newStatus = 'reviewing'; }
-          updates.status = newStatus; onDeliver(submission.id, updates);
-        } finally { setUploading(false); }
+            // 両方プランの場合、もう一方が既にあればレビューへ
+            const otherTypeDone = type === 'remove' ? !!submission.resultAddUrl : !!submission.resultRemoveUrl;
+            if (otherTypeDone) newStatus = 'reviewing';
+            else newStatus = 'processing';
+          } else { 
+            newStatus = 'reviewing'; 
+          }
+          updates.status = newStatus; 
+          
+          // 親コンポーネント経由でDB更新と通知を実行
+          onDeliver(submission.id, updates);
+        } catch (err) {
+          console.error("Replace failed:", err);
+          alert("Image replacement failed.");
+        } finally { 
+          setUploading(false); 
+        }
       };
       reader.readAsDataURL(file);
     };
+
     return (
       <div 
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -227,13 +258,31 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <img src={currentUrl} className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:opacity-40 transition-opacity" alt="" />
             <div className="relative z-10 text-center">
               <span className="text-[7px] font-black text-emerald-600 tracking-widest block uppercase mb-1">{label}</span>
-              <button onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e: any) => { const file = e.target.files?.[0]; if (file) handleUpload(file); }; input.click(); }} className="text-[8px] font-black text-slate-900 uppercase underline">Replace</button>
+              <button onClick={() => { 
+                const input = document.createElement('input'); 
+                input.type = 'file'; 
+                input.accept = 'image/*'; 
+                input.onchange = (e: any) => { 
+                  const file = e.target.files?.[0]; 
+                  if (file) handleUpload(file); 
+                }; 
+                input.click(); 
+              }} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[8px] font-black text-slate-900 uppercase shadow-sm hover:bg-slate-900 hover:text-white transition-all">Replace</button>
             </div>
           </>
         ) : uploading ? ( <div className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div> ) : (
           <div className="text-center p-2">
             <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest block mb-1">DROP {label}</span>
-            <button onClick={() => { const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (e: any) => { const file = e.target.files?.[0]; if (file) handleUpload(file); }; input.click(); }} className="text-[7px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 rounded-lg px-2 py-1">Browse</button>
+            <button onClick={() => { 
+              const input = document.createElement('input'); 
+              input.type = 'file'; 
+              input.accept = 'image/*'; 
+              input.onchange = (e: any) => { 
+                const file = e.target.files?.[0]; 
+                if (file) handleUpload(file); 
+              }; 
+              input.click(); 
+            }} className="text-[7px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 rounded-lg px-2 py-1 hover:bg-slate-900 hover:text-white transition-all">Browse</button>
           </div>
         )}
       </div>
@@ -410,7 +459,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               {p.isVisible === false ? (
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                               ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268-2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               )}
                             </svg>
                          </button>
@@ -505,10 +554,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   const dueDate = getEstimatedDeliveryDate(sub.timestamp);
                   const isDone = sub.status === 'completed';
                   const quotePending = sub.plan === PlanType.FLOOR_PLAN_CG && sub.paymentStatus === 'quote_pending' && !isDone;
+                  const chatInfo = submissionChatInfo[sub.id];
+                  const hasNewMessage = chatInfo?.hasNew;
+
                   return (
-                    <tr key={sub.id} className="hover:bg-slate-50/50 transition-all">
+                    <tr key={sub.id} className={`hover:bg-slate-50/50 transition-all ${hasNewMessage ? 'bg-rose-50/30' : ''}`}>
                       <td className="px-8 py-4 text-center">
-                         <button onClick={() => setViewingDetail(sub)} className="w-14 h-14 rounded-xl overflow-hidden border border-slate-100 hover:border-slate-900 shadow-sm bg-slate-50 inline-block"><img src={sub.dataUrl} className="w-full h-full object-cover" alt="" /></button>
+                         <button onClick={() => setViewingDetail(sub)} className="w-14 h-14 rounded-xl overflow-hidden border border-slate-100 hover:border-slate-900 shadow-sm bg-slate-50 inline-block">
+                           <img src={`${sub.dataUrl}?t=${Date.now()}`} className="w-full h-full object-cover" alt="" />
+                         </button>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${sub.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : sub.status === 'reviewing' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>{sub.status}</span>
@@ -519,15 +573,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </td>
                       <td className="px-6 py-4"> <span className="text-[9px] font-black text-slate-900 bg-slate-100 px-2 py-1 rounded-lg"> {dueDate.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase()} </span> </td>
                       <td className="px-6 py-4">
-                         <select value={sub.assignedEditorId || ''} onChange={(e) => onAssign(sub.id, e.target.value)} className="bg-slate-50 border-none px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none focus:bg-white transition-all w-full max-w-[1400px]">
+                         <select value={sub.assignedEditorId || ''} onChange={(e) => onAssign(sub.id, e.target.value)} className="bg-slate-50 border-none px-3 py-1.5 rounded-lg text-[9px] font-black uppercase outline-none focus:bg-white transition-all w-full">
                             <option value="">Unassigned</option>
                             {editors.map(ed => <option key={ed.id} value={ed.id}>{ed.name}</option>)}
                           </select>
                       </td>
                       <td className="px-6 py-4">
-                         <button onClick={() => setChattingSubmission(sub)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center gap-2 group relative ${submissionChatInfo[sub.id]?.hasNew ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-50 text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
-                           <span>CHAT {submissionChatInfo[sub.id]?.count > 0 && `(${submissionChatInfo[sub.id].count})`}</span>
-                         </button>
+                         <div className="relative inline-block">
+                            <button 
+                              onClick={() => {
+                                setChattingSubmission(sub);
+                                // 開いた時点で既読バッジを消すためにステート更新を即座に反映させる
+                                if (hasNewMessage) {
+                                   const lastMsg = chatInfo.lastMessage;
+                                   if (lastMsg) localStorage.setItem(`chat_last_read_${sub.id}`, lastMsg.timestamp.toString());
+                                }
+                              }} 
+                              className={`px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 group border ${hasNewMessage ? 'bg-rose-500 text-white shadow-xl shadow-rose-200 border-rose-400' : 'bg-slate-900 text-white hover:bg-black border-slate-900'}`}
+                            >
+                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                               <span>CHAT {chatInfo?.count > 0 && `(${chatInfo.count})`}</span>
+                            </button>
+                            {hasNewMessage && (
+                              <div className="absolute -top-3 -right-3 flex items-center justify-center animate-bounce z-10">
+                                <span className="bg-rose-600 text-white text-[7px] font-black px-2 py-1 rounded-full shadow-lg border-2 border-white tracking-widest">NEW</span>
+                              </div>
+                            )}
+                         </div>
                       </td>
                       <td className="px-8 py-4">
                          <div className="flex items-center justify-center gap-2">
