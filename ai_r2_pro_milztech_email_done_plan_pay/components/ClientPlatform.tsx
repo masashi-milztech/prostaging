@@ -273,8 +273,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
       await onRefreshSubmissions();
 
       // 3. メール送信ロジック（確実に送信先情報を取得）
-      // 再取得した userSubmissions から対象の注文を探す
-      const sub = userSubmissions.find(s => s.id === orderId) || (await supabase.from('submissions').select('*').eq('id', orderId).single()).data;
+      const { data: sub } = await supabase.from('submissions').select('*').eq('id', orderId).single();
       
       if (sub) {
         const planInfo = plans[sub.plan];
@@ -288,9 +287,10 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
           thumbnail: sub.dataUrl
         });
 
-        // お客様と運営（info@milz.tech）へメール送信
-        await sendStudioEmail(sub.ownerEmail || user.email, `Order Confirmation: ${sub.id}`, emailContent);
+        // 1. 運営（info@milz.tech）へ
         await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent);
+        // 2. お客様へ
+        await sendStudioEmail(sub.ownerEmail || user.email, `Order Confirmation: ${sub.id}`, emailContent);
       }
 
       // 4. URLをクリーンアップ
@@ -306,7 +306,6 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
   return (
     <div className="max-w-[1400px] mx-auto py-16 px-6 lg:px-12">
       {viewingDetail && <DetailModal submission={viewingDetail} plans={plans} onClose={() => setViewingDetailId(null)} onTriggerCheckout={triggerCheckout} />}
-      {/* Fix: changed property name from chattingSubmission to submission to match ChatBoardProps */}
       {chattingSubmission && <ChatBoard submission={chattingSubmission} user={user} plans={plans} onClose={() => { setChattingSubmissionId(null); loadAllMessages(); }} />}
 
       {isConfirming && (
@@ -316,7 +315,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                  <h3 className="text-3xl font-black uppercase tracking-tight jakarta text-slate-900">Final Review</h3>
                  <p className="text-sm font-medium text-slate-500 italic">Please confirm your project details before initialization.</p>
               </div>
-              <div className="flex gap-8 items-start bg-slate-50 p-6 rounded-3xl">
+              <div className="flex gap-8 items-start bg-slate-50 p-6 rounded-3xl border border-slate-100">
                  <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-200">
                     {previewUrl && <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />}
                  </div>
@@ -324,7 +323,11 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{plans[selectedPlan]?.number} PLAN</span>
                     <h4 className="text-xl font-black uppercase text-slate-900">{plans[selectedPlan]?.title}</h4>
                     <div className="flex flex-col gap-1.5 pt-1">
-                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Fee: {plans[selectedPlan]?.price}</p>
+                      <p className="text-[10px] font-black uppercase text-slate-900 tracking-widest">Fee: {plans[selectedPlan]?.price}</p>
+                      <div className="flex items-center gap-2">
+                        <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Est. Delivery: {getEstimatedDeliveryDate(Date.now()).toLocaleDateString('ja-JP')} (3 Business Days)</p>
+                      </div>
                     </div>
                  </div>
               </div>
