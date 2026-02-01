@@ -79,7 +79,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // 注文データのリアルタイム同期を強化
   useEffect(() => {
     if (!user) return;
 
@@ -93,11 +92,13 @@ const App: React.FC = () => {
           table: 'submissions'
         },
         (payload) => {
-          console.log("[Realtime] Submission Update detected:", payload.eventType);
           if (payload.eventType === 'INSERT') {
             const newSub = payload.new as Submission;
             if (user.role === 'admin' || (user.role === 'user' && newSub.ownerId === user.id)) {
-              setSubmissions(prev => [newSub, ...prev]);
+              setSubmissions(prev => {
+                if (prev.some(s => s.id === newSub.id)) return prev;
+                return [newSub, ...prev];
+              });
             }
           } else if (payload.eventType === 'UPDATE') {
             const updatedSub = payload.new as Submission;
@@ -177,6 +178,9 @@ const App: React.FC = () => {
   };
 
   const handleUpdateStatus = async (id: string, updates: Partial<Submission>) => {
+    // UIを即座に更新
+    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+
     try {
       await db.submissions.update(id, updates);
       
@@ -199,7 +203,16 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Database Update Error:", err);
-      alert(`Update Failed: ${err.message}`);
+      // エラー時は元の状態に戻すか再読み込み
+      onRefresh();
+    }
+  };
+
+  const onRefresh = () => {
+    if (user) {
+      loadSubmissions(user.id, user.role, user.editorRecordId);
+      loadArchive();
+      loadPlans();
     }
   };
 
@@ -236,7 +249,7 @@ const App: React.FC = () => {
             plans={plans}
             onDelete={(id) => db.submissions.delete(id)}
             onDeliver={(id, updates) => handleUpdateStatus(id, updates)}
-            onRefresh={() => { loadSubmissions(user.id, user.role, user.editorRecordId); loadArchive(); loadPlans(); }}
+            onRefresh={onRefresh}
             onAssign={(id, editorId) => handleUpdateStatus(id, { assignedEditorId: editorId || undefined, status: editorId ? 'processing' : 'pending' })}
             onApprove={(id) => handleUpdateStatus(id, { status: 'completed' })}
             onReject={async (id, notes) => handleUpdateStatus(id, { status: 'processing', revisionNotes: notes })}
