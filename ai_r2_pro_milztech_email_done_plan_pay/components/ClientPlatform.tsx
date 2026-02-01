@@ -24,6 +24,8 @@ const FLOOR_PLAN_GUIDE = `Please provide the following details:
 5. Furniture Requirements: (e.g., Large island kitchen, L-shaped sofa)
 6. Other Specifics:`;
 
+const STUDIO_CONTACT_EMAIL = 'info@thisismerci.com';
+
 const resizeImageForAI = (base64Str: string, maxWidth = 1024, maxHeight = 1024): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -78,7 +80,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
 
   useEffect(() => {
     loadAllMessages();
-    const interval = setInterval(loadAllMessages, 10000); // リアルタイム同期があるのでインターバルは長めに設定
+    const interval = setInterval(loadAllMessages, 10000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -222,7 +224,23 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
         paymentStatus: isQuotePlan ? 'quote_pending' : 'unpaid'
       };
       await onSubmission(submission);
+      
       if (isQuotePlan) {
+        // 見積もり依頼メール送信
+        const emailContent = EMAIL_TEMPLATES.ORDER_CONFIRMED({
+          orderId: submission.id,
+          planName: planInfo?.title || 'Quote Request',
+          price: 'Custom Quote (Requested)',
+          date: new Date(submission.timestamp).toLocaleString(),
+          delivery: 'TBD (Quote Pending)',
+          thumbnail: submission.dataUrl
+        });
+
+        // 1. お客様へ
+        await sendStudioEmail(user.email, `Quote Request Received: ${submission.id}`, emailContent);
+        // 2. 運営へ
+        await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Quote Request: ${submission.id}`, emailContent);
+
         setShowSuccess(true);
         setIsSubmitting(false);
         setSelectedFile(null);
@@ -232,6 +250,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
         setReferenceImages([]);
         return;
       }
+      
       const finalAmount = planInfo ? Number(planInfo.amount) : 0;
       await triggerCheckout(orderId, planInfo?.title || 'Staging Service', finalAmount);
     } catch (err: any) {
@@ -247,6 +266,26 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
         stripeSessionId: sessionId,
         status: 'pending'
       });
+
+      // 最新のオーダーデータを取得してメール送信
+      const { data: sub } = await supabase.from('submissions').select('*').eq('id', orderId).single();
+      if (sub) {
+        const planInfo = plans[sub.plan];
+        const emailContent = EMAIL_TEMPLATES.ORDER_CONFIRMED({
+          orderId: sub.id,
+          planName: planInfo?.title || 'Staging Service',
+          price: planInfo?.price || 'Paid',
+          date: new Date(sub.timestamp).toLocaleString(),
+          delivery: '3 Business Days',
+          thumbnail: sub.dataUrl
+        });
+
+        // 1. お客様へ送信
+        await sendStudioEmail(sub.ownerEmail, `Order Confirmation: ${sub.id}`, emailContent);
+        // 2. 運営へ送信
+        await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent);
+      }
+
       window.history.replaceState({}, document.title, "/");
       setShowSuccess(true);
     } catch (err) {
