@@ -3,7 +3,7 @@
  * Multi-Provider Email Utility for StagingPro (Server-Relay version)
  */
 
-export const EMAIL_FROM = 'StagingPro Studio <info@thisismerci.com>';
+export const EMAIL_FROM = 'StagingPro Studio <info@milz.tech>';
 
 const getEnv = (name: string) => {
   // @ts-ignore
