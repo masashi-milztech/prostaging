@@ -25,7 +25,7 @@ const FLOOR_PLAN_GUIDE = `Please provide the following details:
 5. Furniture Requirements: (e.g., Large island kitchen, L-shaped sofa)
 6. Other Specifics:`;
 
-const STUDIO_CONTACT_EMAIL = 'info@thisismerci.com';
+const STUDIO_CONTACT_EMAIL = 'info@milz.tech';
 
 const resizeImageForAI = (base64Str: string, maxWidth = 1024, maxHeight = 1024): Promise<string> => {
   return new Promise((resolve) => {
@@ -239,7 +239,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
 
         // 1. お客様へ
         await sendStudioEmail(user.email, `Quote Request Received: ${submission.id}`, emailContent);
-        // 2. 運営へ
+        // 2. 運営（info@milz.tech）へ
         await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Quote Request: ${submission.id}`, emailContent);
 
         setShowSuccess(true);
@@ -272,21 +272,24 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
       // 2. 最新のオーダーデータをUIに反映させるために再取得
       await onRefreshSubmissions();
 
-      // 3. 最新のオーダー情報を取得してメール送信
-      const { data: sub } = await supabase.from('submissions').select('*').eq('id', orderId).single();
+      // 3. メール送信ロジック（確実に送信先情報を取得）
+      // 再取得した userSubmissions から対象の注文を探す
+      const sub = userSubmissions.find(s => s.id === orderId) || (await supabase.from('submissions').select('*').eq('id', orderId).single()).data;
+      
       if (sub) {
         const planInfo = plans[sub.plan];
+        const estDeliveryDate = getEstimatedDeliveryDate(sub.timestamp).toLocaleDateString('ja-JP');
         const emailContent = EMAIL_TEMPLATES.ORDER_CONFIRMED({
           orderId: sub.id,
           planName: planInfo?.title || 'Staging Service',
           price: planInfo?.price || 'Paid',
           date: new Date(sub.timestamp).toLocaleString(),
-          delivery: '3 Business Days',
+          delivery: `${estDeliveryDate} (3 Business Days)`,
           thumbnail: sub.dataUrl
         });
 
-        // お客様と運営へメール送信
-        await sendStudioEmail(sub.ownerEmail, `Order Confirmation: ${sub.id}`, emailContent);
+        // お客様と運営（info@milz.tech）へメール送信
+        await sendStudioEmail(sub.ownerEmail || user.email, `Order Confirmation: ${sub.id}`, emailContent);
         await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent);
       }
 
@@ -303,6 +306,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
   return (
     <div className="max-w-[1400px] mx-auto py-16 px-6 lg:px-12">
       {viewingDetail && <DetailModal submission={viewingDetail} plans={plans} onClose={() => setViewingDetailId(null)} onTriggerCheckout={triggerCheckout} />}
+      {/* Fix: changed property name from chattingSubmission to submission to match ChatBoardProps */}
       {chattingSubmission && <ChatBoard submission={chattingSubmission} user={user} plans={plans} onClose={() => { setChattingSubmissionId(null); loadAllMessages(); }} />}
 
       {isConfirming && (
@@ -428,6 +432,11 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
               const needsPayment = sub.plan === PlanType.FLOOR_PLAN_CG && sub.paymentStatus === 'quote_pending' && sub.quotedAmount;
               const isCheckingOut = isCheckingOutId === sub.id;
               const hasNewMessage = submissionChatInfo[sub.id]?.hasNew;
+              
+              // 納品目安日の計算
+              const estDate = getEstimatedDeliveryDate(sub.timestamp);
+              const estDateStr = estDate.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
+
               return (
                 <div key={sub.id} className={`group flex flex-col p-6 bg-white rounded-[2.5rem] border transition-all relative ${needsPayment ? 'border-indigo-500 shadow-xl ring-4 ring-indigo-50' : 'border-slate-100 hover:border-slate-900 animate-in fade-in duration-500'}`}>
                   {hasNewMessage && (
@@ -450,10 +459,18 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                     </div>
                     <div className="flex-grow min-w-0">
                       <span onClick={() => setViewingDetailId(sub.id)} className="text-[10px] font-black text-slate-900 uppercase tracking-widest truncate block mb-1 cursor-pointer">{plans[sub.plan]?.title || sub.plan}</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border w-fit ${sub.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : sub.status === 'quote_request' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                          {sub.status.replace('_', ' ')}
-                        </span>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border w-fit ${sub.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : sub.status === 'quote_request' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                            {sub.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        {sub.status !== 'completed' && sub.paymentStatus === 'paid' && (
+                          <div className="flex items-center gap-1.5">
+                            <svg className="w-2.5 h-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Est. Delivery: {estDateStr}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
