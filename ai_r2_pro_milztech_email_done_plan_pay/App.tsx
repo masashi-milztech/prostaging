@@ -255,6 +255,7 @@ const App: React.FC = () => {
             user={user} 
             plans={plans}
             onSubmission={async (s) => { await db.submissions.insert(s); }}
+            onRefreshSubmissions={() => loadSubmissions(user.id, user.role)}
             userSubmissions={submissions} 
           />
         )}
