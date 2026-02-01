@@ -146,11 +146,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     } catch (err) { alert("Save plan failed"); }
   };
 
-  const handleCancelPlanEdit = () => {
-    setEditingPlanId(null);
-    setPlanForm({ id: '', title: '', price: '$', amount: 0, description: '', number: '', isVisible: true });
-  };
-
   const togglePlanVisibility = async (p: Plan) => {
     try {
       await db.plans.update(p.id, { is_visible: p.isVisible === false });
@@ -167,11 +162,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onUpdateArchive(); setEditingArchiveId(null);
       setArchiveForm({ title: '', category: '', beforeurl: '', afterurl: '', description: '' });
     } catch (err) { alert("Save archive failed"); }
-  };
-
-  const handleCancelArchiveEdit = () => {
-    setEditingArchiveId(null);
-    setArchiveForm({ title: '', category: '', beforeurl: '', afterurl: '', description: '' });
   };
 
   const DeliveryDropZone = ({ submission, type }: { submission: Submission, type: 'remove' | 'add' | 'single' }) => {
@@ -358,7 +348,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {statusFilter === 'plans' ? (
            <div className="space-y-10 animate-in fade-in">
               <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 space-y-8">
-                <h3 className="text-xl font-black uppercase tracking-tight jakarta text-slate-900">{editingPlanId ? 'Edit Plan' : 'Add Plan'}</h3>
+                <h3 className="text-xl font-black uppercase jakarta text-slate-900">{editingPlanId ? 'Edit Plan' : 'Add Plan'}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <input disabled={!!editingPlanId} value={planForm.id} onChange={e => setPlanForm({...planForm, id: e.target.value})} placeholder="Plan ID (Unique)" className="px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none disabled:opacity-50" />
                   <input value={planForm.title} onChange={e => setPlanForm({...planForm, title: e.target.value})} placeholder="Title" className="px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none" />
@@ -370,7 +360,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <div className="flex gap-4">
                   <button onClick={handleSavePlan} className="flex-grow py-6 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Save Production Plan</button>
                   {editingPlanId && (
-                    <button onClick={handleCancelPlanEdit} className="px-10 py-6 bg-white border border-slate-200 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel Edit</button>
+                    <button onClick={() => { setEditingPlanId(null); setPlanForm({ id: '', title: '', price: '$', amount: 0, description: '', number: '', isVisible: true }); }} className="px-10 py-6 bg-white border border-slate-200 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel Edit</button>
                   )}
                 </div>
               </div>
@@ -396,13 +386,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <div className="bg-slate-50 p-10 rounded-[3rem] border border-slate-100 space-y-8">
                  <h3 className="text-xl font-black uppercase jakarta text-slate-900">{editingArchiveId ? 'Update Showcase' : 'Add Showcase'}</h3>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-6">
-                       <input value={archiveForm.title} onChange={e => setArchiveForm({...archiveForm, title: e.target.value})} placeholder="Project Title" className="w-full px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none" />
+                    <div className="space-y-6 text-left">
+                       <input value={archiveForm.title} onChange={e => setArchiveForm({...archiveForm, title: e.target.value})} placeholder="Project Title" className="w-full px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none bg-white" />
                        <select value={archiveForm.category} onChange={e => setArchiveForm({...archiveForm, category: e.target.value})} className="w-full px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none bg-white">
                           <option value="">Select Category</option>
                           {(Object.values(plans) as Plan[]).map(p => <option key={p.id} value={p.title}>{p.title}</option>)}
                        </select>
-                       <textarea value={archiveForm.description} onChange={e => setArchiveForm({...archiveForm, description: e.target.value})} placeholder="Project Context..." className="w-full px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none min-h-[120px]" />
+                       <textarea value={archiveForm.description} onChange={e => setArchiveForm({...archiveForm, description: e.target.value})} placeholder="Project Context..." className="w-full px-6 py-4 rounded-xl text-xs font-medium border border-slate-200 outline-none min-h-[120px] bg-white" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                        <ArchiveImageDropZone type="before" url={archiveForm.beforeurl} onUpload={url => setArchiveForm({...archiveForm, beforeurl: url})} />
@@ -412,7 +402,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                  <div className="flex gap-4">
                   <button onClick={handleSaveArchive} className="flex-grow py-6 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl">Publish to Showcase</button>
                   {editingArchiveId && (
-                    <button onClick={handleCancelArchiveEdit} className="px-10 py-6 bg-white border border-slate-200 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel Edit</button>
+                    <button onClick={() => { setEditingArchiveId(null); setArchiveForm({ title: '', category: '', beforeurl: '', afterurl: '', description: '' }); }} className="px-10 py-6 bg-white border border-slate-200 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel Edit</button>
                   )}
                  </div>
               </div>
