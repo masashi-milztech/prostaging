@@ -237,10 +237,11 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
           thumbnail: submission.dataUrl
         });
 
-        // 1. お客様へ
-        await sendStudioEmail(user.email, `Quote Request Received: ${submission.id}`, emailContent);
-        // 2. 運営（info@milz.tech）へ
-        await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Quote Request: ${submission.id}`, emailContent);
+        // 1. お客様へ & 2. 運営（info@milz.tech）へ
+        await Promise.allSettled([
+          sendStudioEmail(user.email, `Quote Request Received: ${submission.id}`, emailContent),
+          sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Quote Request: ${submission.id}`, emailContent)
+        ]);
 
         setShowSuccess(true);
         setIsSubmitting(false);
@@ -269,10 +270,10 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
         status: 'pending'
       });
 
-      // 2. 最新のオーダーデータをUIに反映させるために再取得
+      // 2. 最新のオーダーデータをUIに反映させるために再取得 (反映を確実にするため)
       await onRefreshSubmissions();
 
-      // 3. メール送信ロジック（確実に送信先情報を取得）
+      // 3. メール送信ロジック (確実に送信を完了させる)
       const { data: sub } = await supabase.from('submissions').select('*').eq('id', orderId).single();
       
       if (sub) {
@@ -287,17 +288,24 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
           thumbnail: sub.dataUrl
         });
 
-        // 1. 運営（info@milz.tech）へ
-        await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent);
-        // 2. お客様へ
-        await sendStudioEmail(sub.ownerEmail || user.email, `Order Confirmation: ${sub.id}`, emailContent);
+        // 運営（info@milz.tech）とお客様の両方へ同時送信を試みる
+        await Promise.allSettled([
+          sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent),
+          sendStudioEmail(sub.ownerEmail || user.email, `Order Confirmation: ${sub.id}`, emailContent)
+        ]);
       }
 
-      // 4. URLをクリーンアップ
+      // URLをクリーンアップ
       window.history.replaceState({}, document.title, "/");
       
-      // 5. 成功メッセージを表示
+      // 成功メッセージを表示
       setShowSuccess(true);
+
+      // 念押しでもう一度リフレッシュ (URLパラメータが消えた状態で確実に)
+      setTimeout(() => {
+        onRefreshSubmissions();
+      }, 500);
+
     } catch (err) {
       console.error("Payment confirmation failed", err);
     }
@@ -322,11 +330,20 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                  <div className="flex-grow space-y-2">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{plans[selectedPlan]?.number} PLAN</span>
                     <h4 className="text-xl font-black uppercase text-slate-900">{plans[selectedPlan]?.title}</h4>
-                    <div className="flex flex-col gap-1.5 pt-1">
-                      <p className="text-[10px] font-black uppercase text-slate-900 tracking-widest">Fee: {plans[selectedPlan]?.price}</p>
-                      <div className="flex items-center gap-2">
-                        <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Est. Delivery: {getEstimatedDeliveryDate(Date.now()).toLocaleDateString('ja-JP')} (3 Business Days)</p>
+                    <div className="flex flex-col gap-2 pt-2">
+                      <p className="text-[11px] font-black uppercase text-slate-900 tracking-widest">Fee: {plans[selectedPlan]?.price}</p>
+                      
+                      {/* 納品目安の表示を強調 */}
+                      <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm w-fit">
+                        <div className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Estimated Delivery</span>
+                          <p className="text-[11px] font-black text-slate-900 uppercase tracking-widest">
+                            {getEstimatedDeliveryDate(Date.now()).toLocaleDateString('ja-JP')} (3 Business Days)
+                          </p>
+                        </div>
                       </div>
                     </div>
                  </div>
@@ -471,7 +488,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                         {sub.status !== 'completed' && sub.paymentStatus === 'paid' && (
                           <div className="flex items-center gap-1.5">
                             <svg className="w-2.5 h-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Est. Delivery: {estDateStr}</span>
+                            <span className="text-[9px] font-bold text-slate-900 uppercase tracking-tight">Est. Delivery: {estDateStr}</span>
                           </div>
                         )}
                       </div>
