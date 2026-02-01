@@ -227,7 +227,6 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
       await onSubmission(submission);
       
       if (isQuotePlan) {
-        // 見積もり依頼メール送信
         const emailContent = EMAIL_TEMPLATES.ORDER_CONFIRMED({
           orderId: submission.id,
           planName: planInfo?.title || 'Quote Request',
@@ -237,7 +236,6 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
           thumbnail: submission.dataUrl
         });
 
-        // 1. お客様へ & 2. 運営（info@milz.tech）へ
         await Promise.allSettled([
           sendStudioEmail(user.email, `Quote Request Received: ${submission.id}`, emailContent),
           sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Quote Request: ${submission.id}`, emailContent)
@@ -263,17 +261,14 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
 
   const handlePaymentSuccess = async (orderId: string, sessionId: string) => {
     try {
-      // 1. データベースの支払ステータスを更新
       await db.submissions.update(orderId, { 
         paymentStatus: 'paid',
         stripeSessionId: sessionId,
         status: 'pending'
       });
 
-      // 2. 最新のオーダーデータをUIに反映させるために再取得 (反映を確実にするため)
       await onRefreshSubmissions();
 
-      // 3. メール送信ロジック (確実に送信を完了させる)
       const { data: sub } = await supabase.from('submissions').select('*').eq('id', orderId).single();
       
       if (sub) {
@@ -288,20 +283,15 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
           thumbnail: sub.dataUrl
         });
 
-        // 運営（info@milz.tech）とお客様の両方へ同時送信を試みる
         await Promise.allSettled([
           sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent),
           sendStudioEmail(sub.ownerEmail || user.email, `Order Confirmation: ${sub.id}`, emailContent)
         ]);
       }
 
-      // URLをクリーンアップ
       window.history.replaceState({}, document.title, "/");
-      
-      // 成功メッセージを表示
       setShowSuccess(true);
 
-      // 念押しでもう一度リフレッシュ (URLパラメータが消えた状態で確実に)
       setTimeout(() => {
         onRefreshSubmissions();
       }, 500);
@@ -312,7 +302,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
   };
 
   return (
-    <div className="max-w-[1400px] mx-auto py-16 px-6 lg:px-12">
+    <div className="max-w-[1400px] mx-auto py-16 px-6 lg:px-12 text-left">
       {viewingDetail && <DetailModal submission={viewingDetail} plans={plans} onClose={() => setViewingDetailId(null)} onTriggerCheckout={triggerCheckout} />}
       {chattingSubmission && <ChatBoard submission={chattingSubmission} user={user} plans={plans} onClose={() => { setChattingSubmissionId(null); loadAllMessages(); }} />}
 
@@ -323,7 +313,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                  <h3 className="text-3xl font-black uppercase tracking-tight jakarta text-slate-900">Final Review</h3>
                  <p className="text-sm font-medium text-slate-500 italic">Please confirm your project details before initialization.</p>
               </div>
-              <div className="flex gap-8 items-start bg-slate-50 p-6 rounded-3xl border border-slate-100">
+              <div className="flex gap-8 items-start bg-slate-50 p-6 rounded-3xl border border-slate-100 text-left">
                  <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 bg-slate-200">
                     {previewUrl && <img src={previewUrl} className="w-full h-full object-cover" alt="Preview" />}
                  </div>
@@ -333,7 +323,6 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                     <div className="flex flex-col gap-2 pt-2">
                       <p className="text-[11px] font-black uppercase text-slate-900 tracking-widest">Fee: {plans[selectedPlan]?.price}</p>
                       
-                      {/* 納品目安の表示を強調 */}
                       <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 shadow-sm w-fit">
                         <div className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -399,7 +388,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                   <FileUpload onFileSelect={handleFileSelect} />
                 </div>
                 {(isAnalyzing || aiAnalysis) && (
-                  <div className="p-8 bg-slate-900 rounded-[2rem] border border-slate-800 shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-700">
+                  <div className="p-8 bg-slate-900 rounded-[2rem] border border-slate-800 shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-700 text-left">
                     <div className="flex items-center justify-between mb-6">
                        <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
@@ -451,17 +440,17 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
             ) : userSubmissions.filter(s => s.paymentStatus === 'paid' || s.paymentStatus === 'quote_pending').map((sub) => {
               const needsPayment = sub.plan === PlanType.FLOOR_PLAN_CG && sub.paymentStatus === 'quote_pending' && sub.quotedAmount;
               const isCheckingOut = isCheckingOutId === sub.id;
-              const hasNewMessage = submissionChatInfo[sub.id]?.hasNew;
+              const chatInfo = submissionChatInfo[sub.id];
+              const hasNewMessage = chatInfo?.hasNew;
               
-              // 納品目安日の計算
               const estDate = getEstimatedDeliveryDate(sub.timestamp);
               const estDateStr = estDate.toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
               return (
-                <div key={sub.id} className={`group flex flex-col p-6 bg-white rounded-[2.5rem] border transition-all relative ${needsPayment ? 'border-indigo-500 shadow-xl ring-4 ring-indigo-50' : 'border-slate-100 hover:border-slate-900 animate-in fade-in duration-500'}`}>
+                <div key={sub.id} className={`group flex flex-col p-6 bg-white rounded-[2.5rem] border transition-all relative text-left ${needsPayment ? 'border-indigo-500 shadow-xl ring-4 ring-indigo-50' : 'border-slate-100 hover:border-slate-900 animate-in fade-in duration-500'}`}>
                   {hasNewMessage && (
                     <div className="absolute top-4 right-6 animate-bounce z-10">
-                       <div className="bg-emerald-500 text-white text-[7px] font-black px-2 py-1 rounded-full shadow-lg shadow-emerald-500/20 tracking-widest flex items-center gap-1.5">
+                       <div className="bg-rose-500 text-white text-[7px] font-black px-2 py-1 rounded-full shadow-lg shadow-rose-500/20 tracking-widest flex items-center gap-1.5 border border-white">
                           <span className="w-1 h-1 bg-white rounded-full animate-ping"></span>NEW MESSAGE
                        </div>
                     </div>
@@ -500,8 +489,9 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                         {isCheckingOut ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : `Pay $ ${(sub.quotedAmount!/100).toFixed(2)} Now`}
                       </button>
                     )}
-                    <button type="button" onClick={() => setChattingSubmissionId(sub.id)} className={`w-full py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${hasNewMessage ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-500/20' : 'bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white'}`}>
-                      Contact Studio {hasNewMessage && `(${submissionChatInfo[sub.id].count})`}
+                    <button type="button" onClick={() => setChattingSubmissionId(sub.id)} className={`w-full py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${hasNewMessage ? 'bg-rose-500 text-white shadow-xl shadow-rose-500/20' : 'bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white'}`}>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                      Contact Studio {chatInfo?.count > 0 && `(${chatInfo.count})`}
                     </button>
                   </div>
                 </div>
