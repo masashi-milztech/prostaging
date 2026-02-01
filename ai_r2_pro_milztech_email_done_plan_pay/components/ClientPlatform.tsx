@@ -12,6 +12,7 @@ import { sendStudioEmail, EMAIL_TEMPLATES } from '../lib/email';
 interface ClientPlatformProps {
   user: User;
   onSubmission: (submission: Submission) => Promise<void>;
+  onRefreshSubmissions: () => Promise<void>;
   userSubmissions: Submission[];
   plans: Record<string, Plan>;
 }
@@ -54,7 +55,7 @@ const resizeImageForAI = (base64Str: string, maxWidth = 1024, maxHeight = 1024):
   });
 };
 
-export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmission, userSubmissions, plans }) => {
+export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmission, onRefreshSubmissions, userSubmissions, plans }) => {
   const visiblePlansList = useMemo(() => (Object.values(plans) as Plan[]).filter(p => p.isVisible !== false), [plans]);
   
   const [selectedPlan, setSelectedPlan] = useState<PlanType>(visiblePlansList[0]?.id as PlanType || PlanType.FURNITURE_REMOVE);
@@ -261,13 +262,17 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
 
   const handlePaymentSuccess = async (orderId: string, sessionId: string) => {
     try {
+      // 1. データベースの支払ステータスを更新
       await db.submissions.update(orderId, { 
         paymentStatus: 'paid',
         stripeSessionId: sessionId,
         status: 'pending'
       });
 
-      // 最新のオーダーデータを取得してメール送信
+      // 2. 最新のオーダーデータをUIに反映させるために再取得
+      await onRefreshSubmissions();
+
+      // 3. 最新のオーダー情報を取得してメール送信
       const { data: sub } = await supabase.from('submissions').select('*').eq('id', orderId).single();
       if (sub) {
         const planInfo = plans[sub.plan];
@@ -280,13 +285,15 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
           thumbnail: sub.dataUrl
         });
 
-        // 1. お客様へ送信
+        // お客様と運営へメール送信
         await sendStudioEmail(sub.ownerEmail, `Order Confirmation: ${sub.id}`, emailContent);
-        // 2. 運営へ送信
         await sendStudioEmail(STUDIO_CONTACT_EMAIL, `New Paid Order: ${sub.id}`, emailContent);
       }
 
+      // 4. URLをクリーンアップ
       window.history.replaceState({}, document.title, "/");
+      
+      // 5. 成功メッセージを表示
       setShowSuccess(true);
     } catch (err) {
       console.error("Payment confirmation failed", err);
@@ -394,7 +401,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                   <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder={isQuotePlan ? "Describe property details..." : "Specific requests..."} className="w-full bg-slate-50 p-8 rounded-[2rem] min-h-[220px] text-sm font-medium outline-none transition-all resize-none italic" />
                 </div>
                 <ReferenceImageUpload references={referenceImages} setReferences={setReferenceImages} />
-                <button onClick={() => setIsConfirming(true)} disabled={!selectedFile || isSubmitting} className={`w-full py-8 rounded-[2.5rem] text-[12px] font-black uppercase tracking-[0.4em] shadow-2xl transition-all flex items-center justify-center gap-4 group ${!selectedFile || isSubmitting ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none' : 'bg-slate-900 text-white hover:bg-black active:scale-[0.98]'}`}>
+                <button onClick={() => setIsConfirming(true)} disabled={!selectedFile || isSubmitting} className={`w-full py-8 rounded-[2.5rem] text-[12px] font-black uppercase tracking-[0.4em] shadow-2xl transition-all flex items-center justify-center gap-4 group ${!selectedFile || isSubmitting ? 'bg-slate-100 text-slate-300 shadow-none' : 'bg-slate-900 text-white hover:bg-black active:scale-[0.98]'}`}>
                   {isSubmitting ? <div className="flex items-center gap-3"><div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div><span>SYNCING...</span></div> : <span>{isQuotePlan ? 'Request Quote & Initialize' : 'Submit & Proceed to Checkout'}</span>}
                 </button>
               </div>
