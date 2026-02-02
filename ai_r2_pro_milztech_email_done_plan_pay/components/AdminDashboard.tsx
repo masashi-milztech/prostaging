@@ -57,12 +57,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newEditorSpecialty, setNewEditorSpecialty] = useState('');
   const [newEditorEmail, setNewEditorEmail] = useState('');
 
-  useEffect(() => {
-    loadAllMessages();
-    const interval = setInterval(loadAllMessages, 10000);
-    return () => clearInterval(interval);
-  }, [submissions]);
-
   const loadAllMessages = async () => {
     try {
       const result = await db.messages.fetchAll();
@@ -71,12 +65,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       
       const map: Record<string, number> = {};
       submissions.forEach(s => {
-        const val = localStorage.getItem(`chat_last_read_${s.id}`);
+        // ユーザーIDをキーに含めることで、同じブラウザでの開発/テスト時の干渉を防ぐ
+        const val = localStorage.getItem(`chat_last_read_${user.id}_${s.id}`);
         if (val) map[s.id] = parseInt(val);
       });
       setLastReadMap(map);
     } catch (err) { }
   };
+
+  useEffect(() => {
+    loadAllMessages();
+    const interval = setInterval(loadAllMessages, 10000);
+    return () => clearInterval(interval);
+  }, [submissions, user.id]);
 
   const submissionChatInfo = useMemo(() => {
     const info: Record<string, { count: number, lastMessage?: Message, hasNew: boolean }> = {};
@@ -85,9 +86,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       if (!sId) return;
       if (!info[sId]) info[sId] = { count: 0, hasNew: false };
       info[sId].count += 1;
+      
       const lastSeen = lastReadMap[sId] || 0;
-      if (!info[sId].lastMessage || msg.timestamp > info[sId].lastMessage.timestamp) info[sId].lastMessage = msg;
-      if (msg.sender_role === 'user' && msg.timestamp > lastSeen) info[sId].hasNew = true;
+      if (!info[sId].lastMessage || msg.timestamp > info[sId].lastMessage.timestamp) {
+        info[sId].lastMessage = msg;
+      }
+
+      // Admin側: クライアント(user)からのメッセージかつ、最後に読んだ時間より新しい場合
+      if (msg.sender_role === 'user' && msg.timestamp > lastSeen) {
+        info[sId].hasNew = true;
+      }
     });
     return info;
   }, [allMessages, lastReadMap]);
@@ -141,8 +149,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return;
     }
     try {
-      // データベースのカラム名に合わせてペイロードを厳密に作成
-      // isVisible（キャメルケース）を除去し、is_visible（スネークケース）を設定
       const { isVisible, ...rest } = planForm;
       const payload = {
         id: rest.id,
@@ -165,7 +171,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setPlanForm({ id: '', title: '', price: '$', amount: 0, description: '', number: '', isVisible: true });
     } catch (err) {
       console.error("Save plan failed:", err);
-      alert("Save plan failed. Please check the console for details.");
+      alert("Save plan failed.");
     }
   };
 
@@ -363,7 +369,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              Team Manager
            </button>}
            <button onClick={onRefresh} className="flex-1 md:flex-none px-6 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center justify-center gap-2">
-             <svg className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+             <svg className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357-2H15" /></svg>
              Sync
            </button>
         </div>
@@ -516,7 +522,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 setChattingSubmission(sub);
                                 if (hasNewMessage) {
                                    const ts = chatInfo.lastMessage?.timestamp || Date.now();
-                                   localStorage.setItem(`chat_last_read_${sub.id}`, ts.toString());
+                                   localStorage.setItem(`chat_last_read_${user.id}_${sub.id}`, ts.toString());
                                    setLastReadMap(prev => ({ ...prev, [sub.id]: ts }));
                                 }
                               }} 
