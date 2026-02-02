@@ -46,9 +46,10 @@ export const ChatBoard: React.FC<ChatBoardProps> = ({ submission, user, plans, o
   useEffect(() => {
     if (messages.length > 0) {
       const latestTimestamp = Math.max(...messages.map(m => m.timestamp));
-      localStorage.setItem(`chat_last_read_${submission.id}`, latestTimestamp.toString());
+      // ユーザーIDをキーに含めることで既読状態を個別に管理
+      localStorage.setItem(`chat_last_read_${user.id}_${submission.id}`, latestTimestamp.toString());
     }
-  }, [messages, submission.id]);
+  }, [messages, submission.id, user.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
