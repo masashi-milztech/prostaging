@@ -81,10 +81,11 @@ export const ChatBoard: React.FC<ChatBoardProps> = ({ submission, user, plans, o
 
     setIsSending(true);
 
+    const isAdminRole = user.role === 'admin' || user.role === 'editor';
     const payload = {
       submission_id: submission.id,
       sender_id: user.id,
-      sender_name: user.email.split('@')[0],
+      sender_name: isAdminRole ? 'Studio' : user.email.split('@')[0],
       sender_role: user.role,
       content: input.trim(),
       timestamp: Date.now()
@@ -134,6 +135,7 @@ export const ChatBoard: React.FC<ChatBoardProps> = ({ submission, user, plans, o
           ) : messages.map((msg) => {
             const isMe = msg.sender_id === user.id;
             const isAdmin = msg.sender_role === 'admin' || msg.sender_role === 'editor';
+            const displayName = isAdmin ? 'Studio' : msg.sender_name;
             
             return (
               <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -146,7 +148,7 @@ export const ChatBoard: React.FC<ChatBoardProps> = ({ submission, user, plans, o
                 </div>
                 <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]`}>
                   <div className="flex items-center gap-2 mb-1 px-1">
-                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{msg.sender_name}</span>
+                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{displayName}</span>
                     <span className="text-[7px] font-bold text-slate-200 uppercase">{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                   <div className={`px-5 py-3 rounded-2xl text-[12px] font-medium leading-relaxed shadow-sm ${isMe ? 'bg-slate-900 text-white rounded-tr-none' : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'}`}>
