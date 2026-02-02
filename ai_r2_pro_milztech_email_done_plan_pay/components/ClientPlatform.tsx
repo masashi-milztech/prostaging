@@ -79,11 +79,26 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
 
   const isQuotePlan = selectedPlan === PlanType.FLOOR_PLAN_CG;
 
+  const loadAllMessages = async () => {
+    try {
+      const msgs = await db.messages.fetchAll() as Message[];
+      setAllMessages(msgs);
+      const map: Record<string, number> = {};
+      userSubmissions.forEach(s => {
+        const val = localStorage.getItem(`chat_last_read_${user.id}_${s.id}`);
+        if (val) map[s.id] = parseInt(val);
+      });
+      setLastReadMap(map);
+    } catch (err) {
+      console.error("Failed to load messages:", err);
+    }
+  };
+
   useEffect(() => {
     loadAllMessages();
     const interval = setInterval(loadAllMessages, 10000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [userSubmissions, user.id]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -95,31 +110,25 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
     }
   }, []);
 
-  const loadAllMessages = async () => {
-    try {
-      const msgs = await db.messages.fetchAll() as Message[];
-      setAllMessages(msgs);
-      const map: Record<string, number> = {};
-      userSubmissions.forEach(s => {
-        const val = localStorage.getItem(`chat_last_read_${s.id}`);
-        if (val) map[s.id] = parseInt(val);
-      });
-      setLastReadMap(map);
-    } catch (err) {
-      console.error("Failed to load messages:", err);
-    }
-  };
-
   const submissionChatInfo = useMemo(() => {
-    const info: Record<string, { count: number, hasNew: boolean }> = {};
+    const info: Record<string, { count: number, lastMessage?: Message, hasNew: boolean }> = {};
     allMessages.forEach(msg => {
       const sId = msg.submission_id;
       if (!sId) return;
       if (!info[sId]) info[sId] = { count: 0, hasNew: false };
       info[sId].count += 1;
+      
       const lastSeen = lastReadMap[sId] || 0;
       const isFromStudio = msg.sender_role === 'admin' || msg.sender_role === 'editor';
-      if (isFromStudio && msg.timestamp > lastSeen) info[sId].hasNew = true;
+      
+      if (!info[sId].lastMessage || msg.timestamp > info[sId].lastMessage.timestamp) {
+        info[sId].lastMessage = msg;
+      }
+
+      // User側: Studio(admin/editor)からのメッセージかつ、最後に読んだ時間より新しい場合
+      if (isFromStudio && msg.timestamp > lastSeen) {
+        info[sId].hasNew = true;
+      }
     });
     return info;
   }, [allMessages, lastReadMap]);
@@ -450,8 +459,8 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                 <div key={sub.id} className={`group flex flex-col p-6 bg-white rounded-[2.5rem] border transition-all relative text-left ${needsPayment ? 'border-indigo-500 shadow-xl ring-4 ring-indigo-50' : 'border-slate-100 hover:border-slate-900 animate-in fade-in duration-500'}`}>
                   {hasNewMessage && (
                     <div className="absolute top-4 right-6 animate-bounce z-10">
-                       <div className="bg-rose-500 text-white text-[7px] font-black px-2 py-1 rounded-full shadow-lg shadow-rose-500/20 tracking-widest flex items-center gap-1.5 border border-white">
-                          <span className="w-1 h-1 bg-white rounded-full animate-ping"></span>NEW MESSAGE
+                       <div className="bg-rose-500 text-white text-[7px] font-black px-3 py-1.5 rounded-full shadow-lg shadow-rose-500/30 tracking-widest flex items-center gap-2 border-2 border-white">
+                          <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>NEW MESSAGE
                        </div>
                     </div>
                   )}
@@ -489,7 +498,16 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
                         {isCheckingOut ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : `Pay $ ${(sub.quotedAmount!/100).toFixed(2)} Now`}
                       </button>
                     )}
-                    <button type="button" onClick={() => setChattingSubmissionId(sub.id)} className={`w-full py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${hasNewMessage ? 'bg-rose-500 text-white shadow-xl shadow-rose-500/20' : 'bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white'}`}>
+                    <button type="button" 
+                      onClick={() => {
+                        setChattingSubmissionId(sub.id);
+                        if (hasNewMessage) {
+                          const ts = chatInfo.lastMessage?.timestamp || Date.now();
+                          localStorage.setItem(`chat_last_read_${user.id}_${sub.id}`, ts.toString());
+                        }
+                      }} 
+                      className={`w-full py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${hasNewMessage ? 'bg-rose-500 text-white shadow-xl shadow-rose-500/20' : 'bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white'}`}
+                    >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
                       Contact Studio {chatInfo?.count > 0 && `(${chatInfo.count})`}
                     </button>
