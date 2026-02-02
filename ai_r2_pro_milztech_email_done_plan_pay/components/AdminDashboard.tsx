@@ -3,7 +3,7 @@ import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { Submission, Plan, Editor, User, PlanType, Message, ArchiveProject, getEstimatedDeliveryDate } from '../types';
 import { DetailModal } from './DetailModal';
 import { ChatBoard } from './ChatBoard';
-import { db } from '../lib/supabase';
+import { db, supabase } from '../lib/supabase';
 import { sendStudioEmail, EMAIL_TEMPLATES } from '../lib/email';
 
 interface AdminDashboardProps {
@@ -59,15 +59,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const loadAllMessages = async () => {
     try {
-      const result = await db.messages.fetchAll();
-      const msgs = Array.isArray(result) ? result : [];
+      const msgs = await db.messages.fetchAll() as Message[];
       setAllMessages(msgs);
       
       const map: Record<string, number> = {};
-      submissions.forEach(s => {
-        // ユーザーIDをキーに含めることで、同じブラウザでの開発/テスト時の干渉を防ぐ
-        const val = localStorage.getItem(`chat_last_read_${user.id}_${s.id}`);
-        if (val) map[s.id] = parseInt(val);
+      msgs.forEach(msg => {
+        const sId = msg.submission_id;
+        if (!sId || map[sId] !== undefined) return;
+        const val = localStorage.getItem(`chat_last_read_${user.id}_${sId}`);
+        if (val) map[sId] = parseInt(val);
       });
       setLastReadMap(map);
     } catch (err) { }
@@ -75,15 +75,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   useEffect(() => {
     loadAllMessages();
-    const interval = setInterval(loadAllMessages, 10000);
-    return () => clearInterval(interval);
-  }, [submissions, user.id]);
+
+    // メッセージのリアルタイム監視
+    const channel = supabase
+      .channel('admin_messages_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const newMessage = payload.new as Message;
+          setAllMessages(prev => [newMessage, ...prev]);
+        }
+      )
+      .subscribe();
+
+    const interval = setInterval(loadAllMessages, 30000); // 予備のポーリング
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [user.id]);
 
   const submissionChatInfo = useMemo(() => {
     const info: Record<string, { count: number, lastMessage?: Message, hasNew: boolean }> = {};
+    
     allMessages.forEach(msg => {
       const sId = msg.submission_id;
       if (!sId) return;
+      
       if (!info[sId]) info[sId] = { count: 0, hasNew: false };
       info[sId].count += 1;
       
@@ -92,7 +111,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         info[sId].lastMessage = msg;
       }
 
-      // Admin側: クライアント(user)からのメッセージかつ、最後に読んだ時間より新しい場合
+      // Admin側: クライアント(user)からのメッセージかつ、既読時間より新しい場合
       if (msg.sender_role === 'user' && msg.timestamp > lastSeen) {
         info[sId].hasNew = true;
       }
@@ -369,7 +388,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
              Team Manager
            </button>}
            <button onClick={onRefresh} className="flex-1 md:flex-none px-6 py-2.5 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center justify-center gap-2">
-             <svg className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357-2H15" /></svg>
+             <svg className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
              Sync
            </button>
         </div>
