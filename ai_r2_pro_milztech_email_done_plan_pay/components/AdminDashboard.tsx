@@ -136,14 +136,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Plan Handlers
   const handleSavePlan = async () => {
-    if (!planForm.id || !planForm.title) return;
+    if (!planForm.id || !planForm.title) {
+      alert("Plan ID and Title are required.");
+      return;
+    }
     try {
-      const payload = { ...planForm, is_visible: planForm.isVisible !== false };
-      if (editingPlanId) await db.plans.update(editingPlanId, payload);
-      else await db.plans.insert(payload);
-      onUpdatePlans(); setEditingPlanId(null);
+      // データベースのカラム名に合わせてペイロードを厳密に作成
+      // isVisible（キャメルケース）を除去し、is_visible（スネークケース）を設定
+      const { isVisible, ...rest } = planForm;
+      const payload = {
+        id: rest.id,
+        title: rest.title,
+        description: rest.description || '',
+        price: rest.price || '$',
+        amount: Number(rest.amount) || 0,
+        number: rest.number || '',
+        is_visible: planForm.isVisible !== false
+      };
+
+      if (editingPlanId) {
+        await db.plans.update(editingPlanId, payload);
+      } else {
+        await db.plans.insert(payload);
+      }
+      
+      onUpdatePlans();
+      setEditingPlanId(null);
       setPlanForm({ id: '', title: '', price: '$', amount: 0, description: '', number: '', isVisible: true });
-    } catch (err) { alert("Save plan failed"); }
+    } catch (err) {
+      console.error("Save plan failed:", err);
+      alert("Save plan failed. Please check the console for details.");
+    }
   };
 
   const togglePlanVisibility = async (p: Plan) => {
@@ -155,13 +178,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Archive Handlers
   const handleSaveArchive = async () => {
-    if (!archiveForm.title || !archiveForm.afterurl) return;
+    if (!archiveForm.title || !archiveForm.afterurl) {
+      alert("Title and Staged image are required.");
+      return;
+    }
     try {
       const id = editingArchiveId || `arch_${Date.now()}`;
-      await db.archive.insert({ ...archiveForm, id, timestamp: Date.now() });
-      onUpdateArchive(); setEditingArchiveId(null);
+      const payload = {
+        id,
+        title: archiveForm.title,
+        category: archiveForm.category || '',
+        beforeurl: archiveForm.beforeurl || '',
+        afterurl: archiveForm.afterurl,
+        description: archiveForm.description || '',
+        timestamp: Date.now()
+      };
+      
+      await db.archive.insert(payload);
+      onUpdateArchive();
+      setEditingArchiveId(null);
       setArchiveForm({ title: '', category: '', beforeurl: '', afterurl: '', description: '' });
-    } catch (err) { alert("Save archive failed"); }
+    } catch (err) {
+      console.error("Save archive failed:", err);
+      alert("Save archive failed.");
+    }
   };
 
   const DeliveryDropZone = ({ submission, type }: { submission: Submission, type: 'remove' | 'add' | 'single' }) => {
