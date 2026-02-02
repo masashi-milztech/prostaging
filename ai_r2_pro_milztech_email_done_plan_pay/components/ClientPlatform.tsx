@@ -84,9 +84,11 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
       const msgs = await db.messages.fetchAll() as Message[];
       setAllMessages(msgs);
       const map: Record<string, number> = {};
-      userSubmissions.forEach(s => {
-        const val = localStorage.getItem(`chat_last_read_${user.id}_${s.id}`);
-        if (val) map[s.id] = parseInt(val);
+      msgs.forEach(msg => {
+        const sId = msg.submission_id;
+        if (!sId || map[sId] !== undefined) return;
+        const val = localStorage.getItem(`chat_last_read_${user.id}_${sId}`);
+        if (val) map[sId] = parseInt(val);
       });
       setLastReadMap(map);
     } catch (err) {
@@ -96,8 +98,25 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
 
   useEffect(() => {
     loadAllMessages();
-    const interval = setInterval(loadAllMessages, 10000); 
-    return () => clearInterval(interval);
+
+    // メッセージのリアルタイム監視
+    const channel = supabase
+      .channel('client_messages_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const newMessage = payload.new as Message;
+          setAllMessages(prev => [newMessage, ...prev]);
+        }
+      )
+      .subscribe();
+
+    const interval = setInterval(loadAllMessages, 30000); 
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [userSubmissions, user.id]);
 
   useEffect(() => {
@@ -125,7 +144,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
         info[sId].lastMessage = msg;
       }
 
-      // User側: Studio(admin/editor)からのメッセージかつ、最後に読んだ時間より新しい場合
+      // User側: Studio(admin/editor)からのメッセージかつ、既読時間より新しい場合
       if (isFromStudio && msg.timestamp > lastSeen) {
         info[sId].hasNew = true;
       }
@@ -378,7 +397,7 @@ export const ClientPlatform: React.FC<ClientPlatformProps> = ({ user, onSubmissi
       <div className="flex flex-col xl:flex-row gap-20 items-start">
         <div className="flex-1 space-y-12">
           <header className="space-y-6">
-            <h1 className="text-7xl font-black text-slate-900 tracking-tighter uppercase leading-[0.85] jakarta">Order <br/> Staging.</h1>
+            <h1 className="text-7xl font-black text-slate-900 tracking-tighter uppercase jakarta leading-[0.85] jakarta">Order <br/> Staging.</h1>
           </header>
           <div className="space-y-8">
             <div className="card-premium rounded-[3rem] p-10 md:p-14">
