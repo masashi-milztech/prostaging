@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, Plan } from '../types';
+import { LegalModal } from './LegalModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -13,6 +14,7 @@ type FooterPage = 'Pricing' | 'Enterprise' | 'API' | 'Careers' | 'Showcase' | 'P
 
 export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans }) => {
   const [activePage, setActivePage] = useState<FooterPage>(null);
+  const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | 'commercial' | null>(null);
 
   const renderPageContent = () => {
     switch (activePage) {
@@ -53,19 +55,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans 
             </div>
           </div>
         );
-      case 'Privacy':
-      case 'Terms':
-      case 'Cookies':
-        return (
-          <div className="space-y-8 py-10">
-            <h3 className="text-4xl font-black jakarta tracking-tighter uppercase">{activePage} Policy</h3>
-            <div className="prose prose-slate max-w-none text-slate-500 font-medium leading-loose">
-              <p>StagingPro International values your professional data. This policy outlines how we handle spatial assets and architectural visualizations within our secure studio environment.</p>
-              <p>All uploaded images are processed on secure, encrypted servers. We do not use client images for promotional purposes without explicit written consent.</p>
-              <p>For enterprise-grade security inquiries, please contact our compliance officer.</p>
-            </div>
-          </div>
-        );
       default:
         return (
           <div className="py-20 text-center space-y-6">
@@ -77,9 +66,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans 
     }
   };
 
+  const handleFooterClick = (page: FooterPage) => {
+    if (page === 'Privacy') {
+      setShowLegal('privacy');
+    } else if (page === 'Terms') {
+      setShowLegal('terms');
+    } else if (page === 'Cookies') {
+      setShowLegal('privacy'); // Map cookies to privacy for now
+    } else {
+      setActivePage(page);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Footer Modal */}
+      {/* Legal Modal */}
+      {showLegal && <LegalModal onClose={() => setShowLegal(null)} initialSection={showLegal} />}
+
+      {/* Footer Modal (for non-legal pages) */}
       {activePage && (
         <div className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[3rem] shadow-2xl relative p-12 md:p-20 no-scrollbar">
@@ -138,7 +142,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans 
                   <svg className="w-4 h-4 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
                 </div>
               </div>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em]">Powered by milz.tech</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em]">Operated by Milztech</span>
             </div>
           </div>
           
@@ -146,29 +150,29 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans 
             <div className="space-y-8">
               <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Platform</h5>
               <div className="flex flex-col gap-6 text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
-                <button onClick={() => setActivePage('Pricing')} className="text-left hover:text-slate-900 transition-colors">Pricing</button>
-                <button onClick={() => setActivePage('Enterprise')} className="text-left hover:text-slate-900 transition-colors">Enterprise</button>
+                <button onClick={() => handleFooterClick('Pricing')} className="text-left hover:text-slate-900 transition-colors">Pricing</button>
+                <button onClick={() => handleFooterClick('Enterprise')} className="text-left hover:text-slate-900 transition-colors">Enterprise</button>
               </div>
             </div>
             <div className="space-y-8">
               <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Studio</h5>
               <div className="flex flex-col gap-6 text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
-                <button onClick={() => setActivePage('Careers')} className="text-left hover:text-slate-900 transition-colors">Careers</button>
-                <button onClick={() => setActivePage('Process')} className="text-left hover:text-slate-900 transition-colors">Process</button>
+                <button onClick={() => handleFooterClick('Careers')} className="text-left hover:text-slate-900 transition-colors">Careers</button>
+                <button onClick={() => handleFooterClick('Process')} className="text-left hover:text-slate-900 transition-colors">Process</button>
               </div>
             </div>
             <div className="space-y-8">
               <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Legal</h5>
               <div className="flex flex-col gap-6 text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
-                <button onClick={() => setActivePage('Privacy')} className="text-left hover:text-slate-900 transition-colors">Privacy</button>
-                <button onClick={() => setActivePage('Terms')} className="text-left hover:text-slate-900 transition-colors">Terms</button>
+                <button onClick={() => handleFooterClick('Privacy')} className="text-left hover:text-slate-900 transition-colors">Privacy</button>
+                <button onClick={() => handleFooterClick('Terms')} className="text-left hover:text-slate-900 transition-colors">Terms</button>
               </div>
             </div>
           </div>
         </div>
         <div className="max-w-[1400px] mx-auto px-6 pt-16 mt-16 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-300">
-            &copy; {new Date().getFullYear()} StagingPro International Studio. All rights reserved.
+            &copy; {new Date().getFullYear()} MILZ.TECH. All rights reserved.
           </p>
           <span className="text-[9px] font-black text-slate-200 uppercase tracking-widest">v2.6.1-Dynamic</span>
         </div>
