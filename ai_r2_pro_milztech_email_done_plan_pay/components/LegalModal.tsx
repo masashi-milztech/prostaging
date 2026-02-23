@@ -71,7 +71,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ onClose, initialSection 
                     </div>
                     <div>
                       <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">Representative Director</span>
-                      <p className="font-bold text-slate-900">[Emi Wada]</p>
+                      <p className="font-bold text-slate-900">Emi Wada</p>
                     </div>
                     <div className="md:col-span-2">
                       <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">Address</span>
