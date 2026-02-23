@@ -1,6 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Plan, ArchiveProject } from '../types';
+import { LegalModal } from './LegalModal';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -11,6 +12,7 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjects, plans }) => {
   const showcaseRef = useRef<HTMLDivElement>(null);
   const [showExplorer, setShowExplorer] = useState(false);
+  const [showLegal, setShowLegal] = useState(false);
   const [viewingProject, setViewingProject] = useState<ArchiveProject | null>(null);
   const [sliderPos, setSliderPos] = useState(50);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
@@ -103,6 +105,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjec
     <div className="bg-white selection:bg-slate-900 selection:text-white overflow-x-hidden">
       
       {/* 1. Archive Explorer Modal (List View) */}
+      {showLegal && <LegalModal onClose={() => setShowLegal(false)} />}
       {showExplorer && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 md:p-10 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-5xl h-[92vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden">
@@ -416,8 +419,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjec
              </span>
              <span className="hidden sm:block w-4 h-[1.5px] bg-slate-900"></span>
           </div>
-          <div className="mt-8 text-center opacity-30">
-             <p className="text-[7px] font-bold text-slate-900 uppercase tracking-[0.3em] md:tracking-[0.5em]">© 2025 MILZ.TECH. ALL RIGHTS RESERVED.</p>
+          <div className="mt-8 text-center space-y-4">
+             <button onClick={() => setShowLegal(true)} className="text-[9px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-[0.2em] transition-colors">
+                Legal Information & Commercial Disclosure
+             </button>
+             <p className="text-[7px] font-bold text-slate-300 uppercase tracking-[0.3em] md:tracking-[0.5em] opacity-50">© 2025 MILZ.TECH. ALL RIGHTS RESERVED.</p>
           </div>
         </div>
       </footer>
