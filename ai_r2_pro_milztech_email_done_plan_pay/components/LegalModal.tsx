@@ -74,9 +74,9 @@ export const LegalModal: React.FC<LegalModalProps> = ({ onClose, initialSection 
                       <p className="font-bold text-slate-900">Emi Wada</p>
                     </div>
                     <div className="md:col-span-2">
-                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">Address</span>
+                      <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">Address & Phone</span>
                       <p className="font-bold text-slate-900">5-20-10 Sakuragaoka, Setagaya-ku, Tokyo, Japan</p>
-                      <p className="text-[10px] text-slate-400 mt-1">Note: Please contact us via email for telephone number requests. We will disclose it without delay upon request.</p>
+                      <p className="font-bold text-slate-900 mt-1">03-6820-6049</p>
                     </div>
                     <div className="md:col-span-2">
                       <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">Contact Email</span>
