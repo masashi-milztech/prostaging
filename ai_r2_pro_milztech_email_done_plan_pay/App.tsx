@@ -5,7 +5,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
 import { CommercialDisclosure } from './components/CommercialDisclosure';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
-import { TermsOfService } from './components/TermsOfService';
+import { TermsOfServicePage } from './components/TermsOfServicePage';
 import { PricingPage } from './components/PricingPage';
 import { Submission, User, Editor, DEFAULT_PLANS, ArchiveProject, Plan } from './types';
 import { Layout } from './components/Layout';
@@ -44,8 +44,13 @@ const App: React.FC = () => {
   }, []);
 
   const navigate = (path: string) => {
+    if (path === '/') {
+      window.location.href = '/';
+      return;
+    }
     window.history.pushState({}, '', path);
     setCurrentPath(path);
+    window.scrollTo(0, 0);
   };
 
   const isCommercialDisclosure = currentPath.replace(/\/$/, '') === '/commercial-disclosure';
@@ -104,9 +109,12 @@ const App: React.FC = () => {
 
   const identifyAndInitialize = async (authSession: any) => {
     const currentId = ++initializationId.current;
+    
+    // Load public data in background (non-blocking)
+    loadArchive();
+    loadPlans();
+
     try {
-      await Promise.all([loadArchive(), loadPlans()]);
-      
       if (authSession?.user) {
         const authEmail = normalizeEmail(authSession.user.email);
         let role: 'admin' | 'editor' | 'user' = 'user';
@@ -194,77 +202,76 @@ const App: React.FC = () => {
     }
   };
 
-  if (isCommercialDisclosure) {
-    return <CommercialDisclosure onBack={() => navigate('/')} />;
-  }
+  const overlay = React.useMemo(() => {
+    if (isCommercialDisclosure) return <CommercialDisclosure onBack={() => navigate('/')} />;
+    if (isPrivacyPolicy) return <PrivacyPolicy onBack={() => navigate('/')} />;
+    if (isTermsOfService) return <TermsOfServicePage onBack={() => navigate('/')} />;
+    if (isPricing) return <PricingPage onBack={() => navigate('/')} plans={plans} />;
+    return null;
+  }, [currentPath, plans, isCommercialDisclosure, isPrivacyPolicy, isTermsOfService, isPricing]);
 
-  if (isPrivacyPolicy) {
-    return <PrivacyPolicy onBack={() => navigate('/')} />;
-  }
-
-  if (isTermsOfService) {
-    return <TermsOfService onBack={() => navigate('/')} />;
-  }
-
-  if (isPricing) {
-    return <PricingPage onBack={() => navigate('/')} plans={plans} />;
-  }
-
-  if (isInitializing) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
-      <div className="relative">
-        <div className="w-16 h-16 border-[3px] border-slate-200 rounded-full"></div>
-        <div className="absolute top-0 left-0 w-16 h-16 border-[3px] border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-      <div className="text-center space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-900">Synchronizing Session</p>
-        <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Accessing StagingPro Studio</p>
-      </div>
-    </div>
-  );
-
-  if (!user) {
-    if (showAuth) {
-      return <Login onLogin={() => {}} onBack={() => setShowAuth(false)} />;
-    }
-    return <LandingPage onStart={() => setShowAuth(true)} archiveProjects={archiveProjects} plans={plans} />;
-  }
-
-  const isInternalMember = user.role === 'admin' || user.role === 'editor';
+  const isInternalMember = user?.role === 'admin' || user?.role === 'editor';
 
   return (
-    <Layout user={user} onLogout={handleLogout} plans={plans}>
-      {isInternalMember ? (
-        <AdminDashboard 
-          user={user} 
-          submissions={submissions} 
-          archiveProjects={archiveProjects}
-          plans={plans}
-          onDelete={(id) => db.submissions.delete(id).then(() => setSubmissions(s => s.filter(x => x.id !== id)))}
-          onDeliver={(id, updates) => handleUpdateStatus(id, updates)}
-          onRefresh={() => { loadSubmissions(user.id, user.role, user.editorRecordId); loadArchive(); loadPlans(); }}
-          onAssign={(id, editorId) => handleUpdateStatus(id, { assignedEditorId: editorId || undefined, status: editorId ? 'processing' : 'pending' })}
-          onApprove={(id) => handleUpdateStatus(id, { status: 'completed' })}
-          onReject={async (id, notes) => handleUpdateStatus(id, { status: 'processing', revisionNotes: notes })}
-          isSyncing={isSyncing} 
-          editors={editors}
-          onAddEditor={async (name, specialty, email) => {
-            await db.editors.insert({ id: `ed_${Math.random().toString(36).substr(2, 5)}`, name, email: email?.toLowerCase().trim(), specialty });
-            setEditors(await db.editors.fetchAll() as Editor[]);
-          }}
-          onDeleteEditor={(id) => db.editors.delete(id).then(() => setEditors(e => e.filter(x => x.id !== id)))}
-          onUpdateArchive={loadArchive}
-          onUpdatePlans={loadPlans}
-        />
-      ) : (
-        <ClientPlatform 
-          user={user} 
-          plans={plans}
-          onSubmission={async (s) => { await db.submissions.insert(s); setSubmissions(prev => [s, ...prev]); }} 
-          userSubmissions={submissions} 
-        />
+    <>
+      {overlay && (
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-50">
+           {overlay}
+        </div>
       )}
-    </Layout>
+
+      {isInitializing ? (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
+          <div className="relative">
+            <div className="w-16 h-16 border-[3px] border-slate-200 rounded-full"></div>
+            <div className="absolute top-0 left-0 w-16 h-16 border-[3px] border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <div className="text-center space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-900">Synchronizing Session</p>
+            <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">Accessing StagingPro Studio</p>
+          </div>
+        </div>
+      ) : !user ? (
+        showAuth ? (
+          <Login onLogin={() => {}} onBack={() => setShowAuth(false)} />
+        ) : (
+          <LandingPage onStart={() => setShowAuth(true)} archiveProjects={archiveProjects} plans={plans} />
+        )
+      ) : (
+        <Layout user={user} onLogout={handleLogout} plans={plans}>
+          {isInternalMember ? (
+            <AdminDashboard 
+              user={user} 
+              submissions={submissions} 
+              archiveProjects={archiveProjects}
+              plans={plans}
+              onDelete={(id) => db.submissions.delete(id).then(() => setSubmissions(s => s.filter(x => x.id !== id)))}
+              onDeliver={(id, updates) => handleUpdateStatus(id, updates)}
+              onRefresh={() => { loadSubmissions(user.id, user.role, user.editorRecordId); loadArchive(); loadPlans(); }}
+              onAssign={(id, editorId) => handleUpdateStatus(id, { assignedEditorId: editorId || undefined, status: editorId ? 'processing' : 'pending' })}
+              onApprove={(id) => handleUpdateStatus(id, { status: 'completed' })}
+              onReject={async (id, notes) => handleUpdateStatus(id, { status: 'processing', revisionNotes: notes })}
+              isSyncing={isSyncing} 
+              editors={editors}
+              onAddEditor={async (name, specialty, email) => {
+                await db.editors.insert({ id: `ed_${Math.random().toString(36).substr(2, 5)}`, name, email: email?.toLowerCase().trim(), specialty });
+                setEditors(await db.editors.fetchAll() as Editor[]);
+              }}
+              onDeleteEditor={(id) => db.editors.delete(id).then(() => setEditors(e => e.filter(x => x.id !== id)))}
+              onUpdateArchive={loadArchive}
+              onUpdatePlans={loadPlans}
+            />
+          ) : (
+            <ClientPlatform 
+              user={user} 
+              plans={plans}
+              onSubmission={async (s) => { await db.submissions.insert(s); setSubmissions(prev => [s, ...prev]); }} 
+              userSubmissions={submissions} 
+            />
+          )}
+        </Layout>
+      )}
+    </>
   );
 };
 
