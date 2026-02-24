@@ -12,7 +12,7 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjects, plans }) => {
   const showcaseRef = useRef<HTMLDivElement>(null);
   const [showExplorer, setShowExplorer] = useState(false);
-  const [showLegal, setShowLegal] = useState(false);
+  const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | 'commercial' | null>(null);
   const [viewingProject, setViewingProject] = useState<ArchiveProject | null>(null);
   const [sliderPos, setSliderPos] = useState(50);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
@@ -105,7 +105,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjec
     <div className="bg-white selection:bg-slate-900 selection:text-white overflow-x-hidden">
       
       {/* 1. Archive Explorer Modal (List View) */}
-      {showLegal && <LegalModal onClose={() => setShowLegal(false)} />}
+      {showLegal && <LegalModal onClose={() => setShowLegal(null)} initialSection={showLegal} />}
       {showExplorer && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 md:p-10 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-5xl h-[92vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden">
@@ -318,7 +318,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjec
       </section>
 
       {/* Production Plans */}
-      <section className="py-20 md:py-40 px-6 bg-slate-50 overflow-hidden">
+      <section id="pricing" className="py-20 md:py-40 px-6 bg-slate-50 overflow-hidden">
         <div className="max-w-[1000px] mx-auto space-y-16 md:space-y-24">
           <div className="text-center space-y-4 md:space-y-6">
             <span className="text-[8px] md:text-[9px] font-black text-slate-300 uppercase tracking-[0.6em] md:tracking-[0.8em]">Frameworks</span>
@@ -419,10 +419,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjec
              </span>
              <span className="hidden sm:block w-4 h-[1.5px] bg-slate-900"></span>
           </div>
-          <div className="mt-8 text-center space-y-4">
-             <button onClick={() => setShowLegal(true)} className="text-[9px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-[0.2em] transition-colors">
-                Legal Information & Commercial Disclosure
-             </button>
+          <div className="mt-8 text-center space-y-4 flex flex-col items-center">
+             <a href="/pricing" className="text-[9px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-[0.2em] transition-colors">
+                Pricing
+             </a>
+             <a href="/privacy-policy" className="text-[9px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-[0.2em] transition-colors">
+                Privacy Policy
+             </a>
+             <a href="/terms-of-service" className="text-[9px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-[0.2em] transition-colors">
+                Terms of Use
+             </a>
+             <a href="/commercial-disclosure" className="text-[9px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-[0.2em] transition-colors">
+                Commercial Disclosure
+             </a>
+             {/* Hidden text for Stripe/Bots verification */}
+             <div className="sr-only">
+               Commercial Disclosure (Specified Commercial Transactions Act):
+               Distributor: Milztech.
+               Representative Director: Emi Wada.
+               Address: 5-20-10 Sakuragaoka, Setagaya-ku, Tokyo, Japan.
+               Phone: 03-6820-6049.
+               Email: info@milz.tech.
+               Payment Methods: Credit Card (Stripe).
+             </div>
              <p className="text-[7px] font-bold text-slate-300 uppercase tracking-[0.3em] md:tracking-[0.5em] opacity-50">© 2025 MILZ.TECH. ALL RIGHTS RESERVED.</p>
           </div>
         </div>
