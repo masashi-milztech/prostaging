@@ -150,7 +150,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans 
             <div className="space-y-8">
               <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Platform</h5>
               <div className="flex flex-col gap-6 text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
-                <button onClick={() => handleFooterClick('Pricing')} className="text-left hover:text-slate-900 transition-colors">Pricing</button>
+                <a href="/pricing" className="text-left hover:text-slate-900 transition-colors">Pricing</a>
                 <button onClick={() => handleFooterClick('Enterprise')} className="text-left hover:text-slate-900 transition-colors">Enterprise</button>
               </div>
             </div>
@@ -164,8 +164,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, plans 
             <div className="space-y-8">
               <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Legal</h5>
               <div className="flex flex-col gap-6 text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
-                <button onClick={() => handleFooterClick('Privacy')} className="text-left hover:text-slate-900 transition-colors">Privacy</button>
-                <button onClick={() => handleFooterClick('Terms')} className="text-left hover:text-slate-900 transition-colors">Terms</button>
+                <a href="/privacy-policy" className="text-left hover:text-slate-900 transition-colors">Privacy</a>
+                <a href="/terms-of-service" className="text-left hover:text-slate-900 transition-colors">Terms</a>
+                <a href="/commercial-disclosure" className="text-left hover:text-slate-900 transition-colors">Commercial Disclosure</a>
               </div>
             </div>
           </div>
