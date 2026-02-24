@@ -3,6 +3,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ClientPlatform } from './components/ClientPlatform';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LandingPage } from './components/LandingPage';
+import { CommercialDisclosure } from './components/CommercialDisclosure';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { TermsOfService } from './components/TermsOfService';
+import { PricingPage } from './components/PricingPage';
 import { Submission, User, Editor, DEFAULT_PLANS, ArchiveProject, Plan } from './types';
 import { Layout } from './components/Layout';
 import { Login } from './components/Login';
@@ -28,8 +32,26 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showAuth, setShowAuth] = useState(false);
-  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
   const initializationId = useRef(0);
+
+  // Simple routing check
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const onPopState = () => setCurrentPath(window.location.pathname);
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+  };
+
+  const isCommercialDisclosure = currentPath.replace(/\/$/, '') === '/commercial-disclosure';
+  const isPrivacyPolicy = currentPath.replace(/\/$/, '') === '/privacy-policy';
+  const isTermsOfService = currentPath.replace(/\/$/, '') === '/terms-of-service';
+  const isPricing = currentPath.replace(/\/$/, '') === '/pricing';
 
   const loadPlans = useCallback(async () => {
     try {
@@ -37,6 +59,7 @@ const App: React.FC = () => {
       const planMap: Record<string, Plan> = {};
       if (data && data.length > 0) {
         data.forEach(p => { 
+          // DBの is_visible (スネークケース) を isVisible (キャメルケース) に変換
           planMap[p.id] = { 
             ...p, 
             isVisible: p.is_visible !== false 
@@ -78,44 +101,6 @@ const App: React.FC = () => {
       setIsSyncing(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('submissions_realtime_main')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', 
-          schema: 'public',
-          table: 'submissions'
-        },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            const newSub = payload.new as Submission;
-            if (user.role === 'admin' || (user.role === 'user' && newSub.ownerId === user.id)) {
-              setSubmissions(prev => {
-                if (prev.some(s => s.id === newSub.id)) return prev;
-                return [newSub, ...prev];
-              });
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedSub = payload.new as Submission;
-            setSubmissions(prev => prev.map(s => s.id === updatedSub.id ? { ...s, ...updatedSub } : s));
-          } else if (payload.eventType === 'DELETE') {
-            setSubmissions(prev => prev.filter(s => s.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe((status) => {
-        setIsRealtimeActive(status === 'SUBSCRIBED');
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user]);
 
   const identifyAndInitialize = async (authSession: any) => {
     const currentId = ++initializationId.current;
@@ -178,11 +163,9 @@ const App: React.FC = () => {
   };
 
   const handleUpdateStatus = async (id: string, updates: Partial<Submission>) => {
-    // UIを即座に更新
-    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-
     try {
       await db.submissions.update(id, updates);
+      setSubmissions(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       
       const isFinalDelivery = updates.status === 'completed' || updates.status === 'reviewing';
       const hasResult = !!(updates.resultAddUrl || updates.resultDataUrl);
@@ -203,18 +186,29 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Database Update Error:", err);
-      // エラー時は元の状態に戻すか再読み込み
-      onRefresh();
+      if (err.code === 'PGRST204') {
+        alert(`Database Sync Error. Please check SQL configuration.`);
+      } else {
+        alert(`Update Failed: ${err.message}`);
+      }
     }
   };
 
-  const onRefresh = () => {
-    if (user) {
-      loadSubmissions(user.id, user.role, user.editorRecordId);
-      loadArchive();
-      loadPlans();
-    }
-  };
+  if (isCommercialDisclosure) {
+    return <CommercialDisclosure onBack={() => navigate('/')} />;
+  }
+
+  if (isPrivacyPolicy) {
+    return <PrivacyPolicy onBack={() => navigate('/')} />;
+  }
+
+  if (isTermsOfService) {
+    return <TermsOfService onBack={() => navigate('/')} />;
+  }
+
+  if (isPricing) {
+    return <PricingPage onBack={() => navigate('/')} plans={plans} />;
+  }
 
   if (isInitializing) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
@@ -240,47 +234,36 @@ const App: React.FC = () => {
 
   return (
     <Layout user={user} onLogout={handleLogout} plans={plans}>
-      <div className="relative">
-        {isInternalMember ? (
-          <AdminDashboard 
-            user={user} 
-            submissions={submissions} 
-            archiveProjects={archiveProjects}
-            plans={plans}
-            onDelete={(id) => db.submissions.delete(id)}
-            onDeliver={(id, updates) => handleUpdateStatus(id, updates)}
-            onRefresh={onRefresh}
-            onAssign={(id, editorId) => handleUpdateStatus(id, { assignedEditorId: editorId || undefined, status: editorId ? 'processing' : 'pending' })}
-            onApprove={(id) => handleUpdateStatus(id, { status: 'completed' })}
-            onReject={async (id, notes) => handleUpdateStatus(id, { status: 'processing', revisionNotes: notes })}
-            isSyncing={isSyncing} 
-            editors={editors}
-            onAddEditor={async (name, specialty, email) => {
-              await db.editors.insert({ id: `ed_${Math.random().toString(36).substr(2, 5)}`, name, email: email?.toLowerCase().trim(), specialty });
-              setEditors(await db.editors.fetchAll() as Editor[]);
-            }}
-            onDeleteEditor={(id) => db.editors.delete(id).then(() => setEditors(e => e.filter(x => x.id !== id)))}
-            onUpdateArchive={loadArchive}
-            onUpdatePlans={loadPlans}
-          />
-        ) : (
-          <ClientPlatform 
-            user={user} 
-            plans={plans}
-            onSubmission={async (s) => { await db.submissions.insert(s); }}
-            onRefreshSubmissions={() => loadSubmissions(user.id, user.role)}
-            userSubmissions={submissions} 
-          />
-        )}
-        
-        {/* Realtime Status Indicator */}
-        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-2 bg-white/90 backdrop-blur border border-slate-100 rounded-full shadow-lg pointer-events-none transition-all">
-          <div className={`w-2 h-2 rounded-full ${isRealtimeActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
-          <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">
-            {isRealtimeActive ? 'Live Studio Link' : 'Connecting...'}
-          </span>
-        </div>
-      </div>
+      {isInternalMember ? (
+        <AdminDashboard 
+          user={user} 
+          submissions={submissions} 
+          archiveProjects={archiveProjects}
+          plans={plans}
+          onDelete={(id) => db.submissions.delete(id).then(() => setSubmissions(s => s.filter(x => x.id !== id)))}
+          onDeliver={(id, updates) => handleUpdateStatus(id, updates)}
+          onRefresh={() => { loadSubmissions(user.id, user.role, user.editorRecordId); loadArchive(); loadPlans(); }}
+          onAssign={(id, editorId) => handleUpdateStatus(id, { assignedEditorId: editorId || undefined, status: editorId ? 'processing' : 'pending' })}
+          onApprove={(id) => handleUpdateStatus(id, { status: 'completed' })}
+          onReject={async (id, notes) => handleUpdateStatus(id, { status: 'processing', revisionNotes: notes })}
+          isSyncing={isSyncing} 
+          editors={editors}
+          onAddEditor={async (name, specialty, email) => {
+            await db.editors.insert({ id: `ed_${Math.random().toString(36).substr(2, 5)}`, name, email: email?.toLowerCase().trim(), specialty });
+            setEditors(await db.editors.fetchAll() as Editor[]);
+          }}
+          onDeleteEditor={(id) => db.editors.delete(id).then(() => setEditors(e => e.filter(x => x.id !== id)))}
+          onUpdateArchive={loadArchive}
+          onUpdatePlans={loadPlans}
+        />
+      ) : (
+        <ClientPlatform 
+          user={user} 
+          plans={plans}
+          onSubmission={async (s) => { await db.submissions.insert(s); setSubmissions(prev => [s, ...prev]); }} 
+          userSubmissions={submissions} 
+        />
+      )}
     </Layout>
   );
 };
