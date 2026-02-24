@@ -1,7 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Plan, ArchiveProject } from '../types';
-import { LegalModal } from './LegalModal';
 
 interface LandingPageProps {
   onStart: () => void;
@@ -12,7 +11,6 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjects, plans }) => {
   const showcaseRef = useRef<HTMLDivElement>(null);
   const [showExplorer, setShowExplorer] = useState(false);
-  const [showLegal, setShowLegal] = useState<'terms' | 'privacy' | 'commercial' | null>(null);
   const [viewingProject, setViewingProject] = useState<ArchiveProject | null>(null);
   const [sliderPos, setSliderPos] = useState(50);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
@@ -105,7 +103,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onStart, archiveProjec
     <div className="bg-white selection:bg-slate-900 selection:text-white overflow-x-hidden">
       
       {/* 1. Archive Explorer Modal (List View) */}
-      {showLegal && <LegalModal onClose={() => setShowLegal(null)} initialSection={showLegal} />}
       {showExplorer && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-xl p-4 md:p-10 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-5xl h-[92vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden">
