@@ -4,7 +4,7 @@ interface TermsOfServiceProps {
   onBack: () => void;
 }
 
-export const TermsOfService: React.FC<TermsOfServiceProps> = ({ onBack }) => {
+export const TermsOfServicePage: React.FC<TermsOfServiceProps> = ({ onBack }) => {
   return (
     <div className="min-h-screen bg-slate-50 py-20 px-6">
       <div className="max-w-3xl mx-auto space-y-12">
